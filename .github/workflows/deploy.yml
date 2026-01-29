@@ -1,0 +1,36 @@
+name: Deploy to Pages repo
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+
+      - name: Checkout deploy repo
+        uses: actions/checkout@v4
+        with:
+          repository: apt-evils-in/apt-99
+          token: ${{ secrets.DEPLOY_TOKEN }}
+          path: deploy
+
+      - name: Sync files to deploy repo
+        run: |
+          rsync -av --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            ./ deploy/
+
+      - name: Commit and push changes
+        run: |
+          cd deploy
+          git config user.name "auto-deploy"
+          git config user.email "deploy@github"
+          git add .
+          git commit -m "Deploy from apt.evils.in" || echo "No changes"
+          git push
