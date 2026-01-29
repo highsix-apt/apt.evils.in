@@ -1,36 +1,53 @@
-name: Deploy to Pages repo
+name: Mirror repo to apt-99
 
 on:
   push:
     branches: [master]
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: deploy-apt
 
     steps:
+      # Repo origem
       - name: Checkout source repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Checkout deploy repo
+      # Salva origem em dir temporário
+      - name: Stash source files
+        run: |
+          mkdir -p /tmp/source
+          rsync -av \
+            --exclude '.git' \
+            --exclude '.github' \
+            ./ /tmp/source/
+
+      # Repo destino (AGORA no root)
+      - name: Checkout target repo
         uses: actions/checkout@v4
         with:
           repository: apt-evils-in/apt-99
           token: ${{ secrets.DEPLOY_TOKEN }}
-          path: deploy
+          persist-credentials: true
 
-      - name: Sync files to deploy repo
+      # Sync source → root
+      - name: Sync source to root
         run: |
           rsync -av --delete \
             --exclude '.git' \
             --exclude '.github' \
-            ./ deploy/
+            /tmp/source/ ./ || [[ $? == 24 ]]
 
-      - name: Commit and push changes
+      - name: Commit and push
         run: |
-          cd deploy
           git config user.name "auto-deploy"
           git config user.email "deploy@github"
-          git add .
-          git commit -m "Deploy from apt.evils.in" || echo "No changes"
+          git add -A
+          git diff --cached --quiet || git commit -m "Mirror from apt.evils.in"
           git push
